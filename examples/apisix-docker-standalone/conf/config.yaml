@@ -9,6 +9,10 @@ deployment:
   role_data_plane:
     config_provider: yaml
 
+nginx_config:
+  http_server_configuration_snippet: |
+    set $custom_var "Hello World!";
+
 plugins:                           # plugin list (sorted by priority)
   - real-ip                        # priority: 23000
   - client-control                 # priority: 22000
@@ -95,7 +99,7 @@ plugins:                           # plugin list (sorted by priority)
   #- log-rotate                    # priority: 100
 
   # <- recommend to use priority (0, 100) for your custom plugins
-  - demo
+  - error-page-advanced
 
   #- gm                            # priority: -43
   #- ocsp-stapling                 # priority: -44

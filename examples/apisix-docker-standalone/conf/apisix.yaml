@@ -1,29 +1,71 @@
 upstreams:
-  # Upstream to internal service
-  - id: internal_httpbin
+  - id: httpbin_internal
     nodes:
       "httpbin-standalone:80": 1
     type: roundrobin
 
+global_rules:
+  - id: error_page_advanced
+    plugins:
+      error-page-advanced: {}
+
 routes:
-  # Simple route to internal service
   - id: base_internal
-    uri: /get
-    upstream_id: internal_httpbin
+    uri: /anything
+    upstream_id: httpbin_internal
 
-  # Route with demo plugin
-  - id: demo
-    uri: /demo
-    upstream_id: internal_httpbin
+  - id: apisix_status
+    uri: /apisix_status/*
+    upstream_id: httpbin_internal
     plugins:
-      demo:
-        body: "Hello from demo plugin!"
+      serverless-post-function:
+        phase: access
+        functions:
+          - |
+            return function(conf, ctx)
+              local core = require("apisix.core")
+              local status_code = 200
 
-  # Public API from demo plugin
-  - id: demo_public_api
-    uri: /apisix/plugin/demo/public_api
-    upstream_id: internal_httpbin
+              local matched = ngx.re.match(ngx.var.uri, "^/apisix_status/([2-5][0-9]{2})$")
+              if matched then
+                status_code = tonumber(matched[1])
+              end
+
+              core.response.exit(status_code)
+            end
+
+  - id: upstream_status
+    uri: /upstream_status/*
+    upstream_id: httpbin_internal
     plugins:
-      public-api: {}
-      
+      proxy-rewrite:
+        regex_uri:
+          - ^/upstream_status/(.*)
+          - /status/$1
+
+plugin_metadata:
+  - id: error-page-advanced
+    enable: true
+    error_302:
+      body: |
+        {
+          "status": $status,
+          "status_message": "$status_text",
+          "msg": "$custom_var"
+        }
+      content-type: "application/json"
+    error_404:
+      body: |
+        {
+          "status_code": $status,
+          "error": "$status_text"
+        }
+      content-type: "application/json"
+    error_504:
+      redirect_url: "https://httpbin.org/get?foo=bar"
+    error_201:
+      redirect_url: "http://httpbin.org/get"
+    error_200:
+      redirect_url: "https://httpbin.org/get"
+
 #END
